@@ -22,7 +22,6 @@ dav.js: build node_modules
 build: $(JS) $(HBS) node_modules
 	rm -rf build/
 	./node_modules/.bin/babel lib \
-		--modules common \
 		--out-dir build
 
 node_modules: package.json
