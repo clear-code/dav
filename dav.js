@@ -1002,7 +1002,7 @@ exports.createAccount = _co["default"].wrap( /*#__PURE__*/regeneratorRuntime.mar
   }, _callee5);
 }));
 
-},{"./calendars":2,"./contacts":5,"./fuzzy_url_equals":6,"./model":8,"./namespace":9,"./request":11,"co":23,"core-js/modules/web.dom.iterable.js":81,"debug":82,"url":92}],2:[function(require,module,exports){
+},{"./calendars":2,"./contacts":5,"./fuzzy_url_equals":6,"./model":8,"./namespace":9,"./request":11,"co":23,"core-js/modules/web.dom.iterable.js":82,"debug":83,"url":93}],2:[function(require,module,exports){
 "use strict";
 
 function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
@@ -1494,7 +1494,7 @@ var webdavSync = _co["default"].wrap( /*#__PURE__*/regeneratorRuntime.mark(funct
   }, _callee7);
 }));
 
-},{"./fuzzy_url_equals":6,"./model":8,"./namespace":9,"./request":11,"./webdav":21,"co":23,"core-js/modules/web.dom.iterable.js":81,"debug":82,"url":92}],3:[function(require,module,exports){
+},{"./fuzzy_url_equals":6,"./model":8,"./namespace":9,"./request":11,"./webdav":21,"co":23,"core-js/modules/web.dom.iterable.js":82,"debug":83,"url":93}],3:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -1516,7 +1516,7 @@ function camelize(str) {
   })).join('');
 }
 
-},{"core-js/modules/es6.regexp.split.js":80}],4:[function(require,module,exports){
+},{"core-js/modules/es6.regexp.split.js":81}],4:[function(require,module,exports){
 "use strict";
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -1729,12 +1729,10 @@ var Client = /*#__PURE__*/function () {
 
 exports.Client = Client;
 
-},{"./accounts":1,"./calendars":2,"./contacts":5,"core-js/modules/web.dom.iterable.js":81,"url":92}],5:[function(require,module,exports){
+},{"./accounts":1,"./calendars":2,"./contacts":5,"core-js/modules/web.dom.iterable.js":82,"url":93}],5:[function(require,module,exports){
 "use strict";
 
 function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
-
-require("core-js/modules/web.dom.iterable.js");
 
 Object.defineProperty(exports, "__esModule", {
   value: true
@@ -1744,6 +1742,8 @@ exports.updateCard = updateCard;
 exports.deleteCard = deleteCard;
 exports.syncAddressBook = syncAddressBook;
 exports.syncCarddavAccount = exports.listVCards = exports.listAddressBooks = void 0;
+
+require("core-js/modules/web.dom.iterable.js");
 
 var _co = _interopRequireDefault(require("co"));
 
@@ -2130,7 +2130,7 @@ var basicSync = _co["default"].wrap( /*#__PURE__*/regeneratorRuntime.mark(functi
 }));
 
 var webdavSync = _co["default"].wrap( /*#__PURE__*/regeneratorRuntime.mark(function _callee7(addressBook, options) {
-  var req, result;
+  var req, result, localVCards, toBeDeleted;
   return regeneratorRuntime.wrap(function _callee7$(_context7) {
     while (1) {
       switch (_context7.prev = _context7.next) {
@@ -2153,20 +2153,45 @@ var webdavSync = _co["default"].wrap( /*#__PURE__*/regeneratorRuntime.mark(funct
 
         case 3:
           result = _context7.sent;
-          // TODO(gareth): Handle creations and deletions.
+          localVCards = {};
+          if (!addressBook.objects) addressBook.objects = [];
+          addressBook.objects.forEach(function (vcard, index) {
+            localVCards[vcard.url] = {
+              vcard: vcard,
+              index: index
+            };
+          });
+          toBeDeleted = new Set();
           result.responses.forEach(function (response) {
-            // Find the vcard that this response corresponds with.
-            var vcard = addressBook.objects.filter(function (object) {
-              return (0, _fuzzy_url_equals["default"])(object.url, response.href);
-            })[0];
-            if (!vcard) return;
-            vcard.etag = response.props.getetag;
-            vcard.addressData = response.props.addressData;
+            var completedURL = _url["default"].resolve(addressBook.account.rootUrl, response.href);
+
+            var local = localVCards[completedURL];
+
+            if (response.status == 404) {
+              // deleted
+              if (local) toBeDeleted.add(completedURL);
+            } else if (local) {
+              // updated
+              local.vcard.etag = response.props.getetag;
+              local.vcard.addressData = response.props.addressData;
+            } else {
+              // created
+              addressBook.objects.push(new _model.VCard({
+                data: response,
+                addressBook: addressBook,
+                url: completedURL,
+                etag: response.props.getetag,
+                addressData: response.props.addressData
+              }));
+            }
+          });
+          addressBook.objects = addressBook.objects.filter(function (vcard) {
+            return !toBeDeleted.has(vcard.url);
           });
           addressBook.syncToken = result.syncToken;
           return _context7.abrupt("return", addressBook);
 
-        case 7:
+        case 12:
         case "end":
           return _context7.stop();
       }
@@ -2174,7 +2199,7 @@ var webdavSync = _co["default"].wrap( /*#__PURE__*/regeneratorRuntime.mark(funct
   }, _callee7);
 }));
 
-},{"./fuzzy_url_equals":6,"./model":8,"./namespace":9,"./request":11,"./webdav":21,"co":23,"core-js/modules/web.dom.iterable.js":81,"debug":82,"url":92}],6:[function(require,module,exports){
+},{"./fuzzy_url_equals":6,"./model":8,"./namespace":9,"./request":11,"./webdav":21,"co":23,"core-js/modules/web.dom.iterable.js":82,"debug":83,"url":93}],6:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -2370,7 +2395,7 @@ var debug = require('debug')('dav');
 
 exports.debug = debug;
 
-},{"../package":98,"./accounts":1,"./calendars":2,"./client":4,"./contacts":5,"./model":8,"./namespace":9,"./request":11,"./sandbox":12,"./transport":20,"core-js/modules/web.dom.iterable.js":81,"debug":82}],8:[function(require,module,exports){
+},{"../package":99,"./accounts":1,"./calendars":2,"./client":4,"./contacts":5,"./model":8,"./namespace":9,"./request":11,"./sandbox":12,"./transport":20,"core-js/modules/web.dom.iterable.js":82,"debug":83}],8:[function(require,module,exports){
 "use strict";
 
 function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
@@ -2785,7 +2810,7 @@ function child(node, localName) {
   return children(node, localName)[0];
 }
 
-},{"./camelize":3,"debug":82,"xmldom":94}],11:[function(require,module,exports){
+},{"./camelize":3,"debug":83,"xmldom":95}],11:[function(require,module,exports){
 "use strict";
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -2807,6 +2832,8 @@ exports.mergeProps = mergeProps;
 exports.getProps = getProps;
 exports.setRequestHeaders = setRequestHeaders;
 exports.Request = void 0;
+
+require("core-js/modules/es6.regexp.match.js");
 
 var _parser = require("./parser");
 
@@ -3014,7 +3041,11 @@ function syncCollection(options) {
     var responses = object.response.map(function (res) {
       return {
         href: res.href,
-        props: getProps(res.propstat)
+        status: parseInt(res.status.match(/([0-9]{3})/)[1]),
+        statusText: res.status,
+        props: getProps(res.propstat, {
+          ignoreStatus: true
+        })
       };
     });
     return {
@@ -3047,12 +3078,17 @@ var Request = function Request() {
 exports.Request = Request;
 
 function getProp(propstat) {
-  if (/404/g.test(propstat.status)) {
-    return null;
-  }
+  var _ref = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {},
+      ignoreStatus = _ref.ignoreStatus;
 
-  if (/5\d{2}/g.test(propstat.status) || /4\d{2}/g.test(propstat.status)) {
-    throw new Error('Bad status on propstat: ' + propstat.status);
+  if (!ignoreStatus) {
+    if (/404/g.test(propstat.status)) {
+      return null;
+    }
+
+    if (/5\d{2}/g.test(propstat.status) || /4\d{2}/g.test(propstat.status)) {
+      throw new Error('Bad status on propstat: ' + propstat.status);
+    }
   }
 
   return 'prop' in propstat ? propstat.prop : null;
@@ -3069,7 +3105,14 @@ function mergeProps(props) {
 
 
 function getProps(propstats) {
-  return mergeProps(propstats.map(getProp).filter(function (prop) {
+  var _ref2 = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {},
+      ignoreStatus = _ref2.ignoreStatus;
+
+  return mergeProps(propstats.map(function (propstat) {
+    return getProp(propstat, {
+      ignoreStatus: ignoreStatus
+    });
+  }).filter(function (prop) {
     return prop && _typeof(prop) === 'object';
   }));
 }
@@ -3086,7 +3129,7 @@ function setRequestHeaders(request, options) {
   }
 }
 
-},{"./parser":10,"./template/index":16,"core-js/modules/web.dom.iterable.js":81}],12:[function(require,module,exports){
+},{"./parser":10,"./template/index":16,"core-js/modules/es6.regexp.match.js":80,"core-js/modules/web.dom.iterable.js":82}],12:[function(require,module,exports){
 "use strict";
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -3148,7 +3191,7 @@ function createSandbox() {
   return new Sandbox();
 }
 
-},{"debug":82}],13:[function(require,module,exports){
+},{"debug":83}],13:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3396,7 +3439,7 @@ function xmlnsPrefix(namespace) {
   }
 }
 
-},{"../namespace":9,"core-js/modules/web.dom.iterable.js":81}],18:[function(require,module,exports){
+},{"../namespace":9,"core-js/modules/web.dom.iterable.js":82}],18:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -3804,7 +3847,7 @@ var refreshAccessToken = _co["default"].wrap( /*#__PURE__*/regeneratorRuntime.ma
   }, _callee4);
 }));
 
-},{"./xmlhttprequest":22,"co":23,"httpauth":84,"querystring":91}],21:[function(require,module,exports){
+},{"./xmlhttprequest":22,"co":23,"httpauth":85,"querystring":92}],21:[function(require,module,exports){
 "use strict";
 
 function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
@@ -4040,7 +4083,7 @@ var isCollectionDirty = _co["default"].wrap( /*#__PURE__*/regeneratorRuntime.mar
 
 exports.isCollectionDirty = isCollectionDirty;
 
-},{"./fuzzy_url_equals":6,"./namespace":9,"./request":11,"co":23,"core-js/modules/web.dom.iterable.js":81,"debug":82}],22:[function(require,module,exports){
+},{"./fuzzy_url_equals":6,"./namespace":9,"./request":11,"co":23,"core-js/modules/web.dom.iterable.js":82,"debug":83}],22:[function(require,module,exports){
 "use strict";
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -4170,7 +4213,7 @@ var XMLHttpRequest = /*#__PURE__*/function () {
 
 exports["default"] = XMLHttpRequest;
 
-},{"debug":82}],23:[function(require,module,exports){
+},{"debug":83}],23:[function(require,module,exports){
 
 /**
  * slice() reference.
@@ -5304,6 +5347,48 @@ require('./_export')({
 },{"./_export":37,"./_regexp-exec":64}],80:[function(require,module,exports){
 'use strict';
 
+var anObject = require('./_an-object');
+var toLength = require('./_to-length');
+var advanceStringIndex = require('./_advance-string-index');
+var regExpExec = require('./_regexp-exec-abstract');
+
+// @@match logic
+require('./_fix-re-wks')('match', 1, function (defined, MATCH, $match, maybeCallNative) {
+  return [
+    // `String.prototype.match` method
+    // https://tc39.github.io/ecma262/#sec-string.prototype.match
+    function match(regexp) {
+      var O = defined(this);
+      var fn = regexp == undefined ? undefined : regexp[MATCH];
+      return fn !== undefined ? fn.call(regexp, O) : new RegExp(regexp)[MATCH](String(O));
+    },
+    // `RegExp.prototype[@@match]` method
+    // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@match
+    function (regexp) {
+      var res = maybeCallNative($match, regexp, this);
+      if (res.done) return res.value;
+      var rx = anObject(regexp);
+      var S = String(this);
+      if (!rx.global) return regExpExec(rx, S);
+      var fullUnicode = rx.unicode;
+      rx.lastIndex = 0;
+      var A = [];
+      var n = 0;
+      var result;
+      while ((result = regExpExec(rx, S)) !== null) {
+        var matchStr = String(result[0]);
+        A[n] = matchStr;
+        if (matchStr === '') rx.lastIndex = advanceStringIndex(S, toLength(rx.lastIndex), fullUnicode);
+        n++;
+      }
+      return n === 0 ? null : A;
+    }
+  ];
+});
+
+},{"./_advance-string-index":26,"./_an-object":27,"./_fix-re-wks":39,"./_regexp-exec-abstract":63,"./_to-length":73}],81:[function(require,module,exports){
+'use strict';
+
 var isRegExp = require('./_is-regexp');
 var anObject = require('./_an-object');
 var speciesConstructor = require('./_species-constructor');
@@ -5437,7 +5522,7 @@ require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split, maybeCall
   ];
 });
 
-},{"./_advance-string-index":26,"./_an-object":27,"./_fails":38,"./_fix-re-wks":39,"./_is-regexp":49,"./_regexp-exec":64,"./_regexp-exec-abstract":63,"./_species-constructor":68,"./_to-length":73}],81:[function(require,module,exports){
+},{"./_advance-string-index":26,"./_an-object":27,"./_fails":38,"./_fix-re-wks":39,"./_is-regexp":49,"./_regexp-exec":64,"./_regexp-exec-abstract":63,"./_species-constructor":68,"./_to-length":73}],82:[function(require,module,exports){
 var $iterators = require('./es6.array.iterator');
 var getKeys = require('./_object-keys');
 var redefine = require('./_redefine');
@@ -5497,7 +5582,7 @@ for (var collections = getKeys(DOMIterables), i = 0; i < collections.length; i++
   }
 }
 
-},{"./_global":42,"./_hide":44,"./_iterators":53,"./_object-keys":60,"./_redefine":62,"./_wks":77,"./es6.array.iterator":78}],82:[function(require,module,exports){
+},{"./_global":42,"./_hide":44,"./_iterators":53,"./_object-keys":60,"./_redefine":62,"./_wks":77,"./es6.array.iterator":78}],83:[function(require,module,exports){
 (function (process){(function (){
 /* eslint-env browser */
 
@@ -5770,7 +5855,7 @@ formatters.j = function (v) {
 };
 
 }).call(this)}).call(this,require('_process'))
-},{"./common":83,"_process":86}],83:[function(require,module,exports){
+},{"./common":84,"_process":87}],84:[function(require,module,exports){
 
 /**
  * This is the common logic for both the Node.js and web browser
@@ -6033,7 +6118,7 @@ function setup(env) {
 
 module.exports = setup;
 
-},{"ms":85}],84:[function(require,module,exports){
+},{"ms":86}],85:[function(require,module,exports){
 (function (global){(function (){
 /*
 The MIT License (MIT)
@@ -6372,7 +6457,7 @@ AuthCalc.prototype.sign = function(xhr, req) {
 }
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"pure-md5":88}],85:[function(require,module,exports){
+},{"pure-md5":89}],86:[function(require,module,exports){
 /**
  * Helpers.
  */
@@ -6536,7 +6621,7 @@ function plural(ms, msAbs, n, name) {
   return Math.round(ms / n) + ' ' + name + (isPlural ? 's' : '');
 }
 
-},{}],86:[function(require,module,exports){
+},{}],87:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -6722,7 +6807,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],87:[function(require,module,exports){
+},{}],88:[function(require,module,exports){
 (function (global){(function (){
 /*! https://mths.be/punycode v1.4.1 by @mathias */
 ;(function(root) {
@@ -7259,10 +7344,10 @@ process.umask = function() { return 0; };
 }(this));
 
 }).call(this)}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],88:[function(require,module,exports){
+},{}],89:[function(require,module,exports){
 !function(r,n){if("object"==typeof exports&&"object"==typeof module)module.exports=n();else if("function"==typeof define&&define.amd)define([],n);else{var e=n();for(var t in e)("object"==typeof exports?exports:r)[t]=e[t]}}("undefined"!=typeof self?self:this,function(){return function(r){var n={};function e(t){if(n[t])return n[t].exports;var o=n[t]={i:t,l:!1,exports:{}};return r[t].call(o.exports,o,o.exports,e),o.l=!0,o.exports}return e.m=r,e.c=n,e.d=function(r,n,t){e.o(r,n)||Object.defineProperty(r,n,{enumerable:!0,get:t})},e.r=function(r){"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(r,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(r,"__esModule",{value:!0})},e.t=function(r,n){if(1&n&&(r=e(r)),8&n)return r;if(4&n&&"object"==typeof r&&r&&r.__esModule)return r;var t=Object.create(null);if(e.r(t),Object.defineProperty(t,"default",{enumerable:!0,value:r}),2&n&&"string"!=typeof r)for(var o in r)e.d(t,o,function(n){return r[n]}.bind(null,o));return t},e.n=function(r){var n=r&&r.__esModule?function(){return r.default}:function(){return r};return e.d(n,"a",n),n},e.o=function(r,n){return Object.prototype.hasOwnProperty.call(r,n)},e.p="",e(e.s=0)}([function(r,n,e){"use strict";e.r(n);var t="0123456789abcdef".split("");var o=function(r){for(var n="",e=0;e<4;e++)n+=t[r>>8*e+4&15]+t[r>>8*e&15];return n};var u=function(r){for(var n=r.length,e=0;e<n;e++)r[e]=o(r[e]);return r.join("")};var f=function(r,n){return r+n&4294967295};var i=function(r,n,e,t,o,u,i){return function(r,n,e){return f(r<<n|r>>>32-n,e)}(n=function(r,n,e,t){return n=f(f(n,r),f(e,t))}(r,n,t,u),o,e)};var a=function(r,n,e,t,o,u,f,a){return i(e&t|~e&o,n,e,u,f,a,r)};var c=function(r,n,e,t,o,u,f,a){return i(e&o|t&~o,n,e,u,f,a,r)};var l=function(r,n,e,t,o,u,f,a){return i(e^t^o,n,e,u,f,a,r)};var d=function(r,n,e,t,o,u,f,a){return i(t^(e|~o),n,e,u,f,a,r)};var v=function(r,n,e){void 0===e&&(e=f);var t=r[0],o=r[1],u=r[2],i=r[3],v=a.bind(null,e);t=v(t,o,u,i,n[0],7,-680876936),i=v(i,t,o,u,n[1],12,-389564586),u=v(u,i,t,o,n[2],17,606105819),o=v(o,u,i,t,n[3],22,-1044525330),t=v(t,o,u,i,n[4],7,-176418897),i=v(i,t,o,u,n[5],12,1200080426),u=v(u,i,t,o,n[6],17,-1473231341),o=v(o,u,i,t,n[7],22,-45705983),t=v(t,o,u,i,n[8],7,1770035416),i=v(i,t,o,u,n[9],12,-1958414417),u=v(u,i,t,o,n[10],17,-42063),o=v(o,u,i,t,n[11],22,-1990404162),t=v(t,o,u,i,n[12],7,1804603682),i=v(i,t,o,u,n[13],12,-40341101),u=v(u,i,t,o,n[14],17,-1502002290),o=v(o,u,i,t,n[15],22,1236535329);var s=c.bind(null,e);t=s(t,o,u,i,n[1],5,-165796510),i=s(i,t,o,u,n[6],9,-1069501632),u=s(u,i,t,o,n[11],14,643717713),o=s(o,u,i,t,n[0],20,-373897302),t=s(t,o,u,i,n[5],5,-701558691),i=s(i,t,o,u,n[10],9,38016083),u=s(u,i,t,o,n[15],14,-660478335),o=s(o,u,i,t,n[4],20,-405537848),t=s(t,o,u,i,n[9],5,568446438),i=s(i,t,o,u,n[14],9,-1019803690),u=s(u,i,t,o,n[3],14,-187363961),o=s(o,u,i,t,n[8],20,1163531501),t=s(t,o,u,i,n[13],5,-1444681467),i=s(i,t,o,u,n[2],9,-51403784),u=s(u,i,t,o,n[7],14,1735328473),o=s(o,u,i,t,n[12],20,-1926607734);var b=l.bind(null,e);t=b(t,o,u,i,n[5],4,-378558),i=b(i,t,o,u,n[8],11,-2022574463),u=b(u,i,t,o,n[11],16,1839030562),o=b(o,u,i,t,n[14],23,-35309556),t=b(t,o,u,i,n[1],4,-1530992060),i=b(i,t,o,u,n[4],11,1272893353),u=b(u,i,t,o,n[7],16,-155497632),o=b(o,u,i,t,n[10],23,-1094730640),t=b(t,o,u,i,n[13],4,681279174),i=b(i,t,o,u,n[0],11,-358537222),u=b(u,i,t,o,n[3],16,-722521979),o=b(o,u,i,t,n[6],23,76029189),t=b(t,o,u,i,n[9],4,-640364487),i=b(i,t,o,u,n[12],11,-421815835),u=b(u,i,t,o,n[15],16,530742520),o=b(o,u,i,t,n[2],23,-995338651);var p=d.bind(null,e);t=p(t,o,u,i,n[0],6,-198630844),i=p(i,t,o,u,n[7],10,1126891415),u=p(u,i,t,o,n[14],15,-1416354905),o=p(o,u,i,t,n[5],21,-57434055),t=p(t,o,u,i,n[12],6,1700485571),i=p(i,t,o,u,n[3],10,-1894986606),u=p(u,i,t,o,n[10],15,-1051523),o=p(o,u,i,t,n[1],21,-2054922799),t=p(t,o,u,i,n[8],6,1873313359),i=p(i,t,o,u,n[15],10,-30611744),u=p(u,i,t,o,n[6],15,-1560198380),o=p(o,u,i,t,n[13],21,1309151649),t=p(t,o,u,i,n[4],6,-145523070),i=p(i,t,o,u,n[11],10,-1120210379),u=p(u,i,t,o,n[2],15,718787259),o=p(o,u,i,t,n[9],21,-343485551),r[0]=e(t,r[0]),r[1]=e(o,r[1]),r[2]=e(u,r[2]),r[3]=e(i,r[3])};var s=function(r){for(var n=[],e=0;e<64;e+=4)n[e>>2]=r.charCodeAt(e)+(r.charCodeAt(e+1)<<8)+(r.charCodeAt(e+2)<<16)+(r.charCodeAt(e+3)<<24);return n};var b=function(r,n){var e,t=r.length,o=[1732584193,-271733879,-1732584194,271733878];for(e=64;e<=t;e+=64)v(o,s(r.substring(e-64,e)),n);var u=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],f=(r=r.substring(e-64)).length;for(e=0;e<f;e++)u[e>>2]|=r.charCodeAt(e)<<(e%4<<3);if(u[e>>2]|=128<<(e%4<<3),e>55)for(v(o,u,n),e=16;e--;)u[e]=0;return u[14]=8*t,v(o,u,n),o};function p(r){var n;return"5d41402abc4b2a76b9719d911017c592"!==u(b("hello"))&&(n=function(r,n){var e=(65535&r)+(65535&n);return(r>>16)+(n>>16)+(e>>16)<<16|65535&e}),u(b(r,n))}e.d(n,"md5",function(){return p})}])});
 
-},{}],89:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -7348,7 +7433,7 @@ var isArray = Array.isArray || function (xs) {
   return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{}],90:[function(require,module,exports){
+},{}],91:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -7435,13 +7520,13 @@ var objectKeys = Object.keys || function (obj) {
   return res;
 };
 
-},{}],91:[function(require,module,exports){
+},{}],92:[function(require,module,exports){
 'use strict';
 
 exports.decode = exports.parse = require('./decode');
 exports.encode = exports.stringify = require('./encode');
 
-},{"./decode":89,"./encode":90}],92:[function(require,module,exports){
+},{"./decode":90,"./encode":91}],93:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -8175,7 +8260,7 @@ Url.prototype.parseHost = function() {
   if (host) this.hostname = host;
 };
 
-},{"./util":93,"punycode":87,"querystring":91}],93:[function(require,module,exports){
+},{"./util":94,"punycode":88,"querystring":92}],94:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -8193,7 +8278,7 @@ module.exports = {
   }
 };
 
-},{}],94:[function(require,module,exports){
+},{}],95:[function(require,module,exports){
 function DOMParser(options){
 	this.options = options ||{locator:{}};
 }
@@ -8448,7 +8533,7 @@ exports.DOMParser = DOMParser;
 exports.__DOMHandler = DOMHandler;
 //}
 
-},{"./dom":95,"./entities":96,"./sax":97}],95:[function(require,module,exports){
+},{"./dom":96,"./entities":97,"./sax":98}],96:[function(require,module,exports){
 function copy(src,dest){
 	for(var p in src){
 		dest[p] = src[p];
@@ -9733,7 +9818,7 @@ try{
 	exports.XMLSerializer = XMLSerializer;
 //}
 
-},{}],96:[function(require,module,exports){
+},{}],97:[function(require,module,exports){
 exports.entityMap = {
        lt: '<',
        gt: '>',
@@ -9978,7 +10063,7 @@ exports.entityMap = {
        diams: "♦"
 };
 
-},{}],97:[function(require,module,exports){
+},{}],98:[function(require,module,exports){
 //[4]   	NameStartChar	   ::=   	":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
 //[4a]   	NameChar	   ::=   	NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
 //[5]   	Name	   ::=   	NameStartChar (NameChar)*
@@ -10622,7 +10707,7 @@ function split(source,start){
 exports.XMLReader = XMLReader;
 exports.ParseError = ParseError;
 
-},{}],98:[function(require,module,exports){
+},{}],99:[function(require,module,exports){
 module.exports={
   "name": "dav",
   "version": "1.8.0",
